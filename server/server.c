@@ -3,6 +3,7 @@
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <netdb.h>
+#include <pthread.h>
 
 long read_file(char **file_contents, const char *filename)
 {
@@ -11,7 +12,7 @@ long read_file(char **file_contents, const char *filename)
     FILE *file = fopen(filepath, "r");
 
     if (file == NULL)
-    return -1;
+        return -1;
 
     fseek(file, 0, SEEK_END);
     long fsize = ftell(file);
@@ -22,14 +23,41 @@ long read_file(char **file_contents, const char *filename)
     return fsize;
 }
 
+void *serve_client(void* pnewsockfd)
+{
+    int newsockfd = (int)pnewsockfd;
+    char filename[256], *filecontents;
+    long filesize;
+    FILE *file = fopen("log.txt", "w");
+    fprintf(file, "Socket: %d\n", newsockfd);
+
+    read(newsockfd, filename, 255);
+
+    filesize = read_file(&filecontents, filename);
+
+    fprintf(file, "Filename: %s\n", filename);
+    fprintf(file, "Filesize: %ld\n", filesize);
+
+    fclose(file);
+
+    write(newsockfd, &filesize, sizeof(long));
+    write(newsockfd, filecontents, filesize);
+
+    close(newsockfd);
+}
+
+void serve_client_proxy(int newsockfd)
+{
+    pthread_t server_thread;
+    pthread_create(&server_thread, NULL, &serve_client, (void*)newsockfd);
+}
+
 int main()
 {
-    int sockfd, newsockfd, portno, n;
+    int sockfd, newsockfd, portno;
     socklen_t clilen;
-    char filename[256];
-    char *filecontents;
     struct sockaddr_in serv_addr, cli_addr;
-    long filesize;
+
     sockfd = socket(AF_INET, SOCK_STREAM, 0);
     bzero((char *) &serv_addr, sizeof(serv_addr));
     portno = 2027;
@@ -39,23 +67,12 @@ int main()
     bind(sockfd, (struct sockaddr *) &serv_addr, sizeof(serv_addr));
     listen(sockfd,5);
     clilen = sizeof(cli_addr);
-    newsockfd = accept(sockfd, (struct sockaddr *) &cli_addr, &clilen);
 
-    n = read(newsockfd, filename, 255);
+    while (1) {
+        newsockfd = accept(sockfd, (struct sockaddr *) &cli_addr, &clilen);
+        serve_client_proxy(newsockfd);
+    }
 
-    FILE *file = fopen("log.txt", "w");
-    fprintf(file, "Filename: %s\n", filename);
-
-    filesize = read_file(&filecontents, filename);
-
-    fprintf(file, "File size: %ld\n", filesize);
-
-    n = write(newsockfd, &filesize, sizeof(long));
-    n = write(newsockfd, filecontents, filesize);
-
-    fclose(file);
-    close(newsockfd);
     close(sockfd);
-
     return 0;
 }
