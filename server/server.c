@@ -28,20 +28,22 @@ void *serve_client(void* pnewsockfd)
     int newsockfd = (int)pnewsockfd;
     char filename[256], *filecontents;
     long filesize;
-    FILE *file = fopen("log.txt", "w");
-    fprintf(file, "Socket: %d\n", newsockfd);
 
     read(newsockfd, filename, 255);
 
     filesize = read_file(&filecontents, filename);
 
-    fprintf(file, "Filename: %s\n", filename);
-    fprintf(file, "Filesize: %ld\n", filesize);
-
-    fclose(file);
-
     write(newsockfd, &filesize, sizeof(long));
-    write(newsockfd, filecontents, filesize);
+    if (filesize < 0) {
+        close(newsockfd);
+        return;
+    }
+
+    while(filesize > 0) {
+        long bytesSent = write(newsockfd, filecontents, filesize);
+        filecontents += bytesSent;
+        filesize -= bytesSent;
+    }
 
     close(newsockfd);
 }
@@ -54,11 +56,11 @@ void serve_client_proxy(int newsockfd)
 }
 #endif
 
-#ifdef MULTIPROCESS
+#ifdef MULITPROCESSED
 void serve_client_proxy(int newsockfd)
 {
     int pid = fork();
-    if(pid == 0) {
+    if (pid == 0) {
         serve_client(newsockfd);
     }
 }
