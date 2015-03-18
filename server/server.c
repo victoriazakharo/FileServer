@@ -46,10 +46,20 @@ void *serve_client(void* pnewsockfd)
     close(newsockfd);
 }
 
+#ifdef MULTITHREADED
 void serve_client_proxy(int newsockfd)
 {
     pthread_t server_thread;
     pthread_create(&server_thread, NULL, &serve_client, (void*)newsockfd);
+}
+#endif
+
+void serve_client_proxy(int newsockfd)
+{
+    int pid = fork();
+    if(pid == 0) {
+        serve_client(newsockfd);
+    }
 }
 
 int main()
