@@ -54,6 +54,7 @@ void serve_client_proxy(int newsockfd)
 }
 #endif
 
+#ifdef MULTIPROCESS
 void serve_client_proxy(int newsockfd)
 {
     int pid = fork();
@@ -61,6 +62,7 @@ void serve_client_proxy(int newsockfd)
         serve_client(newsockfd);
     }
 }
+#endif
 
 int main()
 {
